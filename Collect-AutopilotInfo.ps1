@@ -67,15 +67,24 @@ if (Test-Path -Path "C:\MININT") {
 if ($isWinPE) {
     Write-Host "Installing Get-WindowsAutoPilotInfo script..." -ForegroundColor Gray
 
-    try {
-        # Install the script.  -Force bypasses prompts. -Confirm:$false automatically answers "yes" to any confirmation prompts.
-        Install-Script -Name Get-WindowsAutoPilotInfo -Force -Confirm:$false -ErrorAction Stop
-        Write-Host "Get-WindowsAutoPilotInfo installed successfully." -ForegroundColor Green
-    }
-    catch {
-        Write-Host "Error installing Get-WindowsAutoPilotInfo: $($_.Exception.Message)" -ForegroundColor Red
-        Write-Host "Make sure you have an active internet connection." -ForegroundColor Red
-        exit 1 # Exit the script with an error code.
+    # Check for internet connectivity before attempting to install.
+    Write-Host "Checking for internet connectivity..." -ForegroundColor Gray
+    if (Test-Connection -ComputerName 8.8.8.8 -Count 1 -Quiet) {
+        Write-Host "Internet connection detected." -ForegroundColor Green
+        try {
+            # Install the script.  -Force bypasses prompts. -Confirm:$false automatically answers "yes" to any confirmation prompts.
+            Install-Script -Name Get-WindowsAutoPilotInfo -Force -Confirm:$false -ErrorAction Stop
+            Write-Host "Get-WindowsAutoPilotInfo installed successfully." -ForegroundColor Green
+        }
+        catch {
+            Write-Host "Error installing Get-WindowsAutoPilotInfo: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "Make sure you have an active internet connection." -ForegroundColor Red
+            exit 1 # Exit the script with an error code.
+        }
+    } else {
+        Write-Host "No internet connection detected. Cannot install Get-WindowsAutoPilotInfo." -ForegroundColor Red
+        Write-Host "Please connect to the internet and try again." -ForegroundColor Red
+        exit 1
     }
 
     # --- Set Execution Policy (if in WinPE) ---
@@ -166,11 +175,10 @@ if ($targetDrive) {
             Write-Host "Ejecting USB drive..." -ForegroundColor Gray
 
             try {
-                # Use WMI to eject the drive.
-                $volume = Get-WmiObject -Class Win32_Volume | Where-Object {$_.DriveLetter -eq "$($targetDrive.DriveLetter):"}
-                $volume.DriveLetter = $null  #  must set DriveLetter to null before calling Dismount
-                $volume.Put() #  must call Put() to commit the change
-                $volume.Dismount($false, $false) | Out-Null
+                # Use Shell.Application COM object to eject the drive.
+                $shell = New-Object -ComObject Shell.Application
+                $folder = $shell.Namespace("$($targetDrive.DriveLetter):")
+                $folder.Eject()
                 Write-Host "USB drive ejected successfully." -ForegroundColor Green
             }
             catch {
