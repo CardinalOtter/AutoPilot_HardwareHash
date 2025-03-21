@@ -48,23 +48,10 @@ Write-Host "Starting Autopilot hardware hash collection..." -ForegroundColor Gre
 $timestamp = Get-Date -Format "yyyyMMddHHmmss"
 $defaultOutputFile = "AutopilotHWID_$timestamp.csv"
 
-# --- Check Execution Context (WinPE or Full OS) ---
+# --- Install Get-WindowsAutoPilotInfo ---
 
-Write-Host "Checking execution environment..." -ForegroundColor Gray
-
-# Check if we are running in WinPE.  We do this by looking for the MININT directory, which
-# is typically only present in WinPE.
-if (Test-Path -Path "C:\MININT") {
-    $isWinPE = $true
-    Write-Host "Running in WinPE (OOBE environment)." -ForegroundColor Yellow
-} else {
-    $isWinPE = $false
-    Write-Host "Running in full OS environment." -ForegroundColor Yellow
-}
-
-# --- Install Get-WindowsAutoPilotInfo (if in WinPE) ---
-
-if ($isWinPE) {
+# Check if the script is already installed
+if (-not (Get-Command Get-WindowsAutoPilotInfo -ErrorAction SilentlyContinue)) {
     Write-Host "Installing Get-WindowsAutoPilotInfo script..." -ForegroundColor Gray
 
     # Check for internet connectivity before attempting to install.
@@ -86,20 +73,19 @@ if ($isWinPE) {
         Write-Host "Please connect to the internet and try again." -ForegroundColor Red
         exit 1
     }
+}
 
-    # --- Set Execution Policy (if in WinPE) ---
+# --- Check Execution Context (WinPE or Full OS) ---
+# This check is still useful for providing user feedback.
 
-    Write-Host "Setting execution policy..." -ForegroundColor Gray
+Write-Host "Checking execution environment..." -ForegroundColor Gray
 
-    try {
-        # Allow running unsigned scripts for this process only.
-        Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -Force -ErrorAction Stop
-        Write-Host "Execution policy set successfully." -ForegroundColor Green
-    }
-    catch {
-        Write-Host "Error setting execution policy: $($_.Exception.Message)" -ForegroundColor Red
-        exit 1
-    }
+if (Test-Path -Path "C:\MININT") {
+    $isWinPE = $true
+    Write-Host "Running in WinPE (OOBE environment)." -ForegroundColor Yellow
+} else {
+    $isWinPE = $false
+    Write-Host "Running in full OS environment." -ForegroundColor Yellow
 }
 
 # --- Get Hardware Hash ---
@@ -107,8 +93,8 @@ if ($isWinPE) {
 Write-Host "Getting hardware hash..." -ForegroundColor Gray
 
 try {
-    # Get the hardware hash and save it to the default output file.
-    Get-WindowsAutoPilotInfo.ps1 -OutputFile $defaultOutputFile -ErrorAction Stop
+    # Get the hardware hash and save it to the default output file. Use the call operator.
+    & Get-WindowsAutoPilotInfo -OutputFile $defaultOutputFile -ErrorAction Stop
     Write-Host "Hardware hash saved to: $defaultOutputFile" -ForegroundColor Green
 }
 catch {
